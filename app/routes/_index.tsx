@@ -1,147 +1,394 @@
 import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
+import { useState, useEffect } from 'react';
+
+interface ChatbotResponse {
+  success: boolean;
+  question?: string;
+  answer?: string;
+  timestamp?: string;
+  error?: string;
+}
 
 export const meta: MetaFunction = () => {
   return [
-    { title: 'New Remix App' },
-    { name: 'description', content: 'Welcome to Remix!' },
+    { title: 'Pathas 이력서 챗봇' },
+    { name: 'description', content: '저에 대해 무엇이든 물어보세요!' },
   ];
 };
 
 export default function Index() {
-  const { load, data } = useFetcher();
-  console.log('🚀 ~ Index ~ data:', data);
+  const fetcher = useFetcher<ChatbotResponse>();
+  const [message, setMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState<
+    Array<{
+      question: string;
+      answer: string;
+      timestamp: string;
+      isStreaming?: boolean;
+    }>
+  >([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || isStreaming) return;
+
+    // Add user message to history immediately
+    const userMessage = {
+      question: message,
+      answer: '',
+      timestamp: new Date().toISOString(),
+      isStreaming: useStreaming,
+    };
+    setChatHistory(prev => [...prev, userMessage]);
+
+    if (useStreaming) {
+      handleStreamingRequest(message);
+    } else {
+      // Send regular request to chatbot
+      fetcher.submit(
+        { message },
+        {
+          method: 'POST',
+          action: '/me',
+          encType: 'application/json',
+        }
+      );
+    }
+
+    setMessage('');
+  };
+
+  const handleStreamingRequest = async (message: string) => {
+    setIsStreaming(true);
+
+    try {
+      const response = await fetch('/me?stream=true', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      let streamedAnswer = '';
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              console.log('Received streaming data:', data);
+
+              if (data.type === 'chunk') {
+                streamedAnswer += data.content;
+                console.log('Current streamed answer:', streamedAnswer);
+
+                setChatHistory(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  if (lastIndex >= 0) {
+                    updated[lastIndex] = {
+                      ...updated[lastIndex],
+                      answer: streamedAnswer,
+                      timestamp: data.timestamp,
+                    };
+                  }
+                  return updated;
+                });
+              } else if (data.type === 'done') {
+                console.log('스트리밍 완료');
+              } else if (data.type === 'error') {
+                streamedAnswer = data.content;
+                setChatHistory(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  if (lastIndex >= 0) {
+                    updated[lastIndex] = {
+                      ...updated[lastIndex],
+                      answer: streamedAnswer,
+                      timestamp: data.timestamp,
+                    };
+                  }
+                  return updated;
+                });
+              }
+            } catch (parseError) {
+              console.error('Error parsing streaming data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Streaming error:', error);
+      // Update with error message
+      setChatHistory(prev => {
+        const updated = [...prev];
+        const lastIndex = updated.length - 1;
+        if (lastIndex >= 0) {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            answer: '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.',
+            timestamp: new Date().toISOString(),
+          };
+        }
+        return updated;
+      });
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  useEffect(() => {
+    if (fetcher.data && fetcher.data.success) {
+      setChatHistory(prev => {
+        const updated = [...prev];
+        const lastIndex = updated.length - 1;
+        if (lastIndex >= 0 && fetcher.data) {
+          updated[lastIndex] = {
+            question: fetcher.data.question || '',
+            answer: fetcher.data.answer || '',
+            timestamp: fetcher.data.timestamp || new Date().toISOString(),
+          };
+        }
+        return updated;
+      });
+    }
+  }, [fetcher.data]);
+
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-16">
-        <header className="flex flex-col items-center gap-9">
-          <h1 className="leading text-2xl font-bold text-gray-800 dark:text-gray-100">
-            Welcome to <span className="sr-only">Remix</span>
-          </h1>
-          <div className="h-[144px] w-[434px]">
-            <img
-              src="/logo-light.png"
-              alt="Remix"
-              className="block w-full dark:hidden"
-            />
-            <img
-              src="/logo-dark.png"
-              alt="Remix"
-              className="hidden w-full dark:block"
-            />
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="mb-8">
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                Pathas 이력서 챗봇
+              </h1>
+              <p className="text-lg md:text-lg text-gray-300 mb-8">
+                저에 대해 무엇이든 물어보세요!
+              </p>
+            </div>
           </div>
-        </header>
-        <nav className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-gray-200 p-6 dark:border-gray-700">
-          <p className="leading-6 text-gray-700 dark:text-gray-200">
-            What&apos;s next?
-          </p>
-          <ul>
-            {resources.map(({ href, text, icon }) => (
-              <li key={href}>
-                <a
-                  className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {icon}
-                  {text}
-                </a>
-              </li>
+
+          {/* Chat Interface */}
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 shadow-2xl mb-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="ml-4 text-sm text-gray-400">
+                  🤖 Resume RAG Chatbot
+                </span>
+              </div>
+
+              {/* Streaming Toggle */}
+              <button
+                onClick={() => setUseStreaming(!useStreaming)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 hover:scale-105 ${
+                  useStreaming
+                    ? 'bg-green-600/20 text-green-400 border border-green-500/30'
+                    : 'bg-gray-700/50 text-gray-400 border border-gray-600/30 hover:bg-gray-600/50'
+                }`}
+                title={useStreaming ? '스트리밍 응답 ON' : '스트리밍 응답 OFF'}
+              >
+                <span className="text-sm">⚡</span>
+                <span>{useStreaming ? 'ON' : 'OFF'}</span>
+              </button>
+            </div>
+
+            {/* Chat History */}
+            <div className="h-96 overflow-y-auto p-6">
+              {chatHistory.length === 0 ? (
+                <div className="text-center text-gray-400 mt-16">
+                  <div className="text-6xl mb-4">🤖</div>
+                  <p className="text-lg">
+                    대화를 시작해보세요! 저의 경력, 기술, 프로젝트에 대해
+                    질문해주세요.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {chatHistory.map((chat, index) => (
+                    <div key={index} className="space-y-4">
+                      {/* User Message */}
+                      <div className="flex justify-end">
+                        <div className="bg-blue-600 text-white p-4 rounded-2xl max-w-md shadow-lg">
+                          <div className="text-sm opacity-75 mb-1">
+                            Interviewer
+                          </div>
+                          {chat.question}
+                        </div>
+                      </div>
+
+                      {/* Bot Response */}
+                      {chat.answer && (
+                        <div className="flex justify-start">
+                          <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl max-w-md shadow-lg">
+                            <div className="text-sm opacity-75 mb-1 text-blue-400">
+                              Pathas
+                            </div>
+                            <div className="whitespace-pre-wrap">
+                              {chat.answer}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Loading indicator */}
+                      {!chat.answer &&
+                        (fetcher.state === 'submitting' ||
+                          (isStreaming && index === chatHistory.length - 1)) &&
+                        index === chatHistory.length - 1 && (
+                          <div className="flex justify-start">
+                            <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl shadow-lg">
+                              <div className="text-sm opacity-75 mb-1 text-blue-400">
+                                생각중입니다...
+                              </div>
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div
+                                  className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                                  style={{ animationDelay: '0.1s' }}
+                                ></div>
+                                <div
+                                  className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                                  style={{ animationDelay: '0.2s' }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Input Form */}
+            <div className="p-6 border-t border-gray-700">
+              <form onSubmit={handleSubmit}>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
+                    placeholder="저의 경력, 기술, 경험에 대해 질문해주세요..."
+                    className="flex-1 p-4 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={fetcher.state === 'submitting' || isStreaming}
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      fetcher.state === 'submitting' ||
+                      isStreaming ||
+                      !message.trim()
+                    }
+                    className="px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg"
+                  >
+                    {fetcher.state === 'submitting' || isStreaming ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : (
+                      '➤'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Error Display */}
+          {fetcher.data && !fetcher.data.success && (
+            <div className="bg-red-900/50 border border-red-700 text-red-300 px-6 py-4 rounded-xl mb-8">
+              오류: {fetcher.data.error}
+            </div>
+          )}
+
+          {/* Example Questions Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                title: '경력 & 경험',
+                content: '당신의 경력은 어떻게 되나요?',
+                icon: '💼',
+              },
+              {
+                title: '기술 스택',
+                content: '어떤 기술을 보유하고 있나요?',
+                icon: '🛠️',
+              },
+              {
+                title: '프로젝트 경험',
+                content: '진행하신 프로젝트에 대해 요약해서 알려주세요.',
+                icon: '🚀',
+              },
+              {
+                title: '개발 언어',
+                content: '어떤 프로그래밍 언어를 다루나요?',
+                icon: '💻',
+              },
+              {
+                title: '문제 해결',
+                content: '어떤 문제들을 해결해 봤나요?',
+                icon: '🧩',
+              },
+              {
+                title: '개발 철학',
+                content: '개발할 때 가장 중요하게 생각하는 것은 무엇인가요?',
+                icon: '💭',
+              },
+            ].map((example, index) => (
+              <button
+                key={index}
+                onClick={() => setMessage(example.content)}
+                className="bg-gray-800/30 border border-gray-700 p-6 rounded-xl hover:bg-gray-700/30 cursor-pointer transition-all duration-200 hover:border-gray-600 group text-left w-full"
+              >
+                <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200">
+                  {example.icon}
+                </div>
+                <h3 className="text-white font-medium mb-3">{example.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  {example.content}
+                </p>
+              </button>
             ))}
-          </ul>
-          <button
-            className="mt-4 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-            onClick={() => load('/me')}
-          >
-            Load Chatbot
-          </button>
-        </nav>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center mt-12 text-gray-500 text-sm space-x-2">
+            <span>RAG 기반 챗봇 🤖</span>
+            <span>•</span>
+            <span>Remix + LangChain 🔥</span>
+            <span>•</span>
+            <span>스트리밍 💬</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-const resources = [
-  {
-    href: 'https://remix.run/start/quickstart',
-    text: 'Quick Start (5 min)',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M8.51851 12.0741L7.92592 18L15.6296 9.7037L11.4815 7.33333L12.0741 2L4.37036 10.2963L8.51851 12.0741Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: 'https://remix.run/start/tutorial',
-    text: 'Tutorial (30 min)',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M4.561 12.749L3.15503 14.1549M3.00811 8.99944H1.01978M3.15503 3.84489L4.561 5.2508M8.3107 1.70923L8.3107 3.69749M13.4655 3.84489L12.0595 5.2508M18.1868 17.0974L16.635 18.6491C16.4636 18.8205 16.1858 18.8205 16.0144 18.6491L13.568 16.2028C13.383 16.0178 13.0784 16.0347 12.915 16.239L11.2697 18.2956C11.047 18.5739 10.6029 18.4847 10.505 18.142L7.85215 8.85711C7.75756 8.52603 8.06365 8.21994 8.39472 8.31453L17.6796 10.9673C18.0223 11.0653 18.1115 11.5094 17.8332 11.7321L15.7766 13.3773C15.5723 13.5408 15.5554 13.8454 15.7404 14.0304L18.1868 16.4767C18.3582 16.6481 18.3582 16.926 18.1868 17.0974Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: 'https://remix.run/docs',
-    text: 'Remix Docs',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M9.99981 10.0751V9.99992M17.4688 17.4688C15.889 19.0485 11.2645 16.9853 7.13958 12.8604C3.01467 8.73546 0.951405 4.11091 2.53116 2.53116C4.11091 0.951405 8.73546 3.01467 12.8604 7.13958C16.9853 11.2645 19.0485 15.889 17.4688 17.4688ZM2.53132 17.4688C0.951566 15.8891 3.01483 11.2645 7.13974 7.13963C11.2647 3.01471 15.8892 0.951453 17.469 2.53121C19.0487 4.11096 16.9854 8.73551 12.8605 12.8604C8.73562 16.9853 4.11107 19.0486 2.53132 17.4688Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: 'https://rmx.as/discord',
-    text: 'Join Discord',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 24 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M15.0686 1.25995L14.5477 1.17423L14.2913 1.63578C14.1754 1.84439 14.0545 2.08275 13.9422 2.31963C12.6461 2.16488 11.3406 2.16505 10.0445 2.32014C9.92822 2.08178 9.80478 1.84975 9.67412 1.62413L9.41449 1.17584L8.90333 1.25995C7.33547 1.51794 5.80717 1.99419 4.37748 2.66939L4.19 2.75793L4.07461 2.93019C1.23864 7.16437 0.46302 11.3053 0.838165 15.3924L0.868838 15.7266L1.13844 15.9264C2.81818 17.1714 4.68053 18.1233 6.68582 18.719L7.18892 18.8684L7.50166 18.4469C7.96179 17.8268 8.36504 17.1824 8.709 16.4944L8.71099 16.4904C10.8645 17.0471 13.128 17.0485 15.2821 16.4947C15.6261 17.1826 16.0293 17.8269 16.4892 18.4469L16.805 18.8725L17.3116 18.717C19.3056 18.105 21.1876 17.1751 22.8559 15.9238L23.1224 15.724L23.1528 15.3923C23.5873 10.6524 22.3579 6.53306 19.8947 2.90714L19.7759 2.73227L19.5833 2.64518C18.1437 1.99439 16.6386 1.51826 15.0686 1.25995ZM16.6074 10.7755L16.6074 10.7756C16.5934 11.6409 16.0212 12.1444 15.4783 12.1444C14.9297 12.1444 14.3493 11.6173 14.3493 10.7877C14.3493 9.94885 14.9378 9.41192 15.4783 9.41192C16.0471 9.41192 16.6209 9.93851 16.6074 10.7755ZM8.49373 12.1444C7.94513 12.1444 7.36471 11.6173 7.36471 10.7877C7.36471 9.94885 7.95323 9.41192 8.49373 9.41192C9.06038 9.41192 9.63892 9.93712 9.6417 10.7815C9.62517 11.6239 9.05462 12.1444 8.49373 12.1444Z"
-          strokeWidth="1.5"
-        />
-      </svg>
-    ),
-  },
-];
