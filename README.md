@@ -1,6 +1,6 @@
 # Portfolio RAG Chatbot
 
-LangChain 을 활용한 RAG(Retrieval-Augmented Generation) 기반 포트폴리오 챗봇입니다.
+LangChain 을 활용한 RAG(Retrieval-Augmented Generation) 포트폴리오 챗봇입니다.
 
 ## � 기능
 
