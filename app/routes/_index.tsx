@@ -1,4 +1,5 @@
 import type { MetaFunction } from '@remix-run/node';
+import { useFetcher } from '@remix-run/react';
 
 export const meta: MetaFunction = () => {
   return [
@@ -8,6 +9,8 @@ export const meta: MetaFunction = () => {
 };
 
 export default function Index() {
+  const { load, data } = useFetcher();
+  console.log('🚀 ~ Index ~ data:', data);
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-16">
@@ -47,6 +50,12 @@ export default function Index() {
               </li>
             ))}
           </ul>
+          <button
+            className="mt-4 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            onClick={() => load('/me')}
+          >
+            Load Chatbot
+          </button>
         </nav>
       </div>
     </div>
