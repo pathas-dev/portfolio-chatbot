@@ -40,21 +40,9 @@ GOOGLE_API_KEY=google_api_key
 npm run dev
 ```
 
-## Deployment
+## 배포
 
-먼저 프로덕션용 앱을 빌드하세요:
-
-```sh
-npm run build
-```
-
-그 다음 프로덕션 모드로 앱을 실행하세요:
-
-```sh
-npm start
-```
-
-이제 배포할 호스트를 선택해야 합니다.
+Vercel 을 통해 클라우드 플랫폼에 배포합니다.
 
 ### 직접 배포
 
