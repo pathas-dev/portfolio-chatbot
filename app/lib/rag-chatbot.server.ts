@@ -2,16 +2,17 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { Document } from '@langchain/core/documents';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import {
   ChatGoogleGenerativeAI,
   GoogleGenerativeAIEmbeddings,
 } from '@langchain/google-genai';
 import { MemoryVectorStore } from 'langchain/vectorstores/memory';
+import { EnsembleRetriever } from 'langchain/retrievers/ensemble';
+import { BM25Retriever } from '@langchain/community/retrievers/bm25';
 import path from 'path';
 
 export class RAGChatbot {
-  private retriever: VectorStoreRetriever<MemoryVectorStore> | null = null;
+  private retriever: EnsembleRetriever | null = null;
   private isInitialized = false;
 
   /**
@@ -19,12 +20,13 @@ export class RAGChatbot {
    */
   private getPromptTemplate(): ChatPromptTemplate {
     return ChatPromptTemplate.fromTemplate(`
-당신은 Pathas의 이력서를 바탕으로 질문에 답하는 AI 어시스턴트입니다.
-
-마치 pathas 가 자신인 것처럼 질문을 이해하고 답변을 생성하세요.
-
-제공된 문서를 바탕으로 정확하고 도움이 되는 답변을 제공하세요.
-문서에 없는 정보에 대해서는 "해당 질문에 대해서는 적절한 답변을 하기 어렵습니다. 죄송합니다."라고 답하세요.
+당신은 pathas 의 이력서를 바탕으로 질문에 답하는 AI 어시스턴트입니다.
+다음 주의사항들을 지켜주세요:
+- 마치 pathas 가 자신인 것처럼 질문을 이해하고 답변을 생성하세요.
+- 제공된 문서를 최대한 활용해서 정확하고 도움이 되는 답변을 제공하세요.
+- 질문에 대해 최대한 일관성 있는 답변을 제시하세요. 
+- 맥락에 맞지 않은 답변은 피하세요.
+- 문서에 없는 정보에 대해서는 "해당 질문에 대해서는 적절한 답변을 하기 어렵습니다. 죄송합니다."라고 답하세요.
 
 관련 문서:
 {context}
@@ -56,7 +58,7 @@ export class RAGChatbot {
       throw new Error('Retriever가 초기화되지 않았습니다.');
     }
 
-    console.log('---문서 검색 중---');
+    console.log('---앙상블 문서 검색 중 (벡터 + 키워드)---');
     const documents = await this.retriever.invoke(question);
     const context = documents.map(doc => doc.pageContent).join('\n\n');
 
@@ -87,12 +89,26 @@ export class RAGChatbot {
         embeddings
       );
 
-      this.retriever = vectorStore.asRetriever({
-        k: 4, // 상위 4개 관련 문서 검색
+      // 벡터 검색 리트리버 생성
+      const vectorRetriever = vectorStore.asRetriever({
+        k: 10, // 상위 10개 관련 문서 검색
+      });
+
+      // BM25 키워드 검색 리트리버 생성
+      const bm25Retriever = BM25Retriever.fromDocuments(documents, {
+        k: 10, // 상위 10개 관련 문서 검색
+      });
+
+      // 앙상블 리트리버 생성 (벡터 검색 + 키워드 검색)
+      this.retriever = new EnsembleRetriever({
+        retrievers: [vectorRetriever, bm25Retriever],
+        weights: [0.7, 0.3], // 벡터 검색 70%, 키워드 검색 30%
       });
 
       this.isInitialized = true;
-      console.log('RAG 챗봇이 성공적으로 초기화되었습니다.');
+      console.log(
+        '앙상블 RAG 챗봇이 성공적으로 초기화되었습니다. (벡터 검색 + 키워드 검색)'
+      );
     } catch (error) {
       console.error('RAG 챗봇 초기화 실패:', error);
       throw error;
