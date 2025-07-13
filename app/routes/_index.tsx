@@ -1,6 +1,6 @@
 import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ChatbotResponse {
   success: boolean;
@@ -42,6 +42,7 @@ export default function Index() {
   >([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
+  const refMessagesEnd = useRef<HTMLDivElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,6 +190,13 @@ export default function Index() {
     }
   }, [fetcher.data]);
 
+  useEffect(() => {
+    refMessagesEnd.current?.scrollTo({
+      behavior: 'smooth',
+      top: refMessagesEnd.current.scrollHeight,
+    });
+  }, [chatHistory]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="container mx-auto px-4 py-8">
@@ -230,7 +238,7 @@ export default function Index() {
             </div>
 
             {/* Chat History */}
-            <div className="h-96 overflow-y-auto p-6">
+            <div className="h-96 overflow-y-auto p-6" ref={refMessagesEnd}>
               {chatHistory.length === 0 ? (
                 <div className="text-center text-gray-400 mt-16">
                   <div className="text-6xl mb-4">🤖</div>
