@@ -44,13 +44,10 @@ export default function Index() {
   const [useStreaming, setUseStreaming] = useState(true);
   const refMessagesEnd = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim() || isStreaming) return;
-
+  const submitMessage = (question: string) => {
     // Add user message to history immediately
     const userMessage = {
-      question: message,
+      question,
       answer: '',
       timestamp: new Date().toISOString(),
       isStreaming: useStreaming,
@@ -58,11 +55,10 @@ export default function Index() {
     setChatHistory(prev => [...prev, userMessage]);
 
     if (useStreaming) {
-      handleStreamingRequest(message);
+      handleStreamingRequest(question);
     } else {
-      // Send regular request to chatbot
       fetcher.submit(
-        { message },
+        { message: question },
         {
           method: 'POST',
           action: '/me',
@@ -70,6 +66,18 @@ export default function Index() {
         }
       );
     }
+  };
+
+  const handleCardClick = (content: string) => {
+    if (isStreaming) return; // 스트리밍 중이면 무시
+    submitMessage(content);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || isStreaming) return;
+
+    submitMessage(message);
 
     setMessage('');
   };
@@ -375,15 +383,20 @@ export default function Index() {
                 icon: '🧩',
               },
               {
-                title: '개발 철학',
-                content: '개발할 때 가장 중요하게 생각하는 것은 무엇인가요?',
-                icon: '💭',
+                title: '포트폴리오',
+                content: '포트폴리오나 블로그 같은 사이트가 있나요?',
+                icon: '🌐',
               },
             ].map((example, index) => (
               <button
                 key={index}
-                onClick={() => setMessage(example.content)}
-                className="bg-gray-800/30 border border-gray-700 p-6 rounded-xl hover:bg-gray-700/30 cursor-pointer transition-all duration-200 hover:border-gray-600 group text-left w-full"
+                onClick={() => handleCardClick(example.content)}
+                className={`bg-gray-800/30 border border-gray-700 p-6 rounded-xl hover:bg-gray-700/30 cursor-pointer transition-all duration-200 hover:border-gray-600 group text-left w-full ${
+                  fetcher.state === 'submitting' || isStreaming
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
+                disabled={fetcher.state === 'submitting' || isStreaming}
               >
                 <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200">
                   {example.icon}
