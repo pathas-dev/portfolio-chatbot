@@ -11,9 +11,21 @@ interface ChatbotResponse {
 }
 
 export const meta: MetaFunction = () => {
+  const title = 'Pathas 이력서 챗봇';
+  const description = 'Pathas 이력서 기반 AI 챗봇입니다.';
+  const siteUrl = 'https://portfolio-chatbot-ivory.vercel.app/';
+  const ogImageFilename = 'og-image.png';
+  const imageUrl = `${siteUrl}/${ogImageFilename}`;
+
   return [
-    { title: 'Pathas 이력서 챗봇' },
-    { name: 'description', content: '저에 대해 무엇이든 물어보세요!' },
+    { title },
+    { name: 'description', content: description },
+
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: siteUrl },
+    { property: 'og:title', content: title },
+    { property: 'og:description', content: description },
+    { property: 'og:image', content: imageUrl },
   ];
 };
 
@@ -187,9 +199,6 @@ export default function Index() {
               <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
                 Pathas 이력서 챗봇
               </h1>
-              <p className="text-lg md:text-lg text-gray-300 mb-8">
-                저에 대해 무엇이든 물어보세요!
-              </p>
             </div>
           </div>
 
@@ -201,7 +210,7 @@ export default function Index() {
                 <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span className="ml-4 text-sm text-gray-400">
-                  🤖 Resume RAG Chatbot
+                  Resume RAG Chatbot
                 </span>
               </div>
 
@@ -296,7 +305,7 @@ export default function Index() {
                     type="text"
                     value={message}
                     onChange={e => setMessage(e.target.value)}
-                    placeholder="저의 경력, 기술, 경험에 대해 질문해주세요..."
+                    placeholder="당신의 경력은 어떻게 되나요?"
                     className="flex-1 p-4 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={fetcher.state === 'submitting' || isStreaming}
                   />
