@@ -212,7 +212,7 @@ export default function Index() {
           {/* Header */}
           <div className="text-center mb-12">
             <div className="mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              <h1 className="text-2xl md:text-4xl font-bold text-white mb-4">
                 Pathas 이력서 챗봇
               </h1>
             </div>
@@ -225,7 +225,7 @@ export default function Index() {
                 <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="ml-4 text-sm text-gray-400">
+                <span className="ml-4 text-xs md:text-sm text-gray-400">
                   Resume RAG Chatbot
                 </span>
               </div>
@@ -249,8 +249,8 @@ export default function Index() {
             <div className="h-96 overflow-y-auto p-6" ref={refMessagesEnd}>
               {chatHistory.length === 0 ? (
                 <div className="text-center text-gray-400 mt-16">
-                  <div className="text-6xl mb-4">🤖</div>
-                  <p className="text-lg">
+                  <div className="text-4xl md:text-6xl mb-4">🤖</div>
+                  <p className="text-base md:text-lg">
                     대화를 시작해보세요! 저의 경력, 기술, 프로젝트에 대해
                     질문해주세요.
                   </p>
@@ -322,7 +322,7 @@ export default function Index() {
                     value={message}
                     onChange={e => setMessage(e.target.value)}
                     placeholder="당신의 경력은 어떻게 되나요?"
-                    className="flex-1 p-4 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="flex-1 p-4 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full max-w-full box-border"
                     disabled={fetcher.state === 'submitting' || isStreaming}
                   />
                   <button
@@ -358,14 +358,14 @@ export default function Index() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
+                title: '이력서 요약',
+                content: '전체 이력서를 간단히 요약해 주세요.',
+                icon: '📝',
+              },
+              {
                 title: '경력 & 경험',
                 content: '당신의 경력은 어떻게 되나요?',
                 icon: '💼',
-              },
-              {
-                title: '기술 스택',
-                content: '어떤 기술을 보유하고 있나요?',
-                icon: '🛠️',
               },
               {
                 title: '프로젝트 경험',
@@ -373,9 +373,9 @@ export default function Index() {
                 icon: '🚀',
               },
               {
-                title: '개발 언어',
-                content: '어떤 프로그래밍 언어를 다루나요?',
-                icon: '💻',
+                title: '기술 스택',
+                content: '어떤 기술을 보유하고 있나요?',
+                icon: '🛠️',
               },
               {
                 title: '문제 해결',
