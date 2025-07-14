@@ -1,6 +1,7 @@
 import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatbotResponse {
   success: boolean;
@@ -276,8 +277,8 @@ export default function Index() {
                             <div className="text-sm opacity-75 mb-1 text-blue-400">
                               Pathas
                             </div>
-                            <div className="whitespace-pre-wrap">
-                              {chat.answer}
+                            <div className="prose prose-invert max-w-none">
+                              <ReactMarkdown>{chat.answer || ''}</ReactMarkdown>
                             </div>
                           </div>
                         </div>
