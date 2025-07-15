@@ -14,47 +14,75 @@ import path from 'path';
 export class RAGChatbot {
   private retriever: EnsembleRetriever | null = null;
   private isInitialized = false;
+  private readonly interviewee: string = 'pathas'; // 인터뷰 대상자 이름
+
+  private refineQuestion = async (question: string): Promise<string> => {
+    const llm = this.createLLM(false, 'gemini-2.0-flash-lite');
+
+    const prompt = ChatPromptTemplate.fromTemplate(`
+    다음 질문을 더 많은 답변을 이끌어낼 수 있는 질문으로 만들어주세요:
+
+    **주의사항**    
+    - 당신은 면접관입니다.
+    - 질문을 받는 사람은 프런트엔드 개발자입니다.
+    - 질문 외에 다른 부가 설명은 하지 마세요.
+    - 처음 질문과 맥락이 달라지지 않게 주의하세요. 
+    - 질문 내용 종류를 늘리지는 마세요. (예: 기술 질문 -> 기술 질문, 경험 질문)
+
+    질문: {question}
+
+    개선된 질문: 
+    `);
+    const chain = prompt.pipe(llm).pipe(new StringOutputParser());
+
+    const result = await chain.invoke({ question });
+    return result || question;
+  };
 
   /**
    * 공통 프롬프트 템플릿
    */
-  private getPromptTemplate(): ChatPromptTemplate {
-    return ChatPromptTemplate.fromTemplate(`
-당신은 pathas 의 이력서를 바탕으로 질문에 답하는 AI 어시스턴트입니다.
-다음 주의사항들을 지켜주세요:
-- 마치 pathas 가 자신인 것처럼 질문을 이해하고 답변을 생성하세요.
-- 제공된 문서를 최대한 활용해서 정확하고 도움이 되는 답변을 제공하세요.
-- 질문에 대해 최대한 일관성 있는 답변을 제시하세요. 
-- 맥락에 맞지 않은 답변은 피하세요.
-- 문서에 없는 정보에 대해서는 "해당 질문에 대해서는 적절한 답변을 하기 어렵습니다. 죄송합니다."라고 답하세요.
-- 답변은 가능한 경우에 최대한 Markdown 문법을 활용해서 작성하세요. (목록의 경우에는 bullet 을 사용하세요.)
+  private getPromptTemplate = (): ChatPromptTemplate =>
+    ChatPromptTemplate.fromTemplate(`
+    당신은 ${this.interviewee} 의 이력서를 바탕으로 질문에 답하는 AI 어시스턴트입니다.
 
-관련 문서:
-{context}
+    **주의사항**
+    - 마치 ${this.interviewee} 가 자신인 것처럼 질문을 이해하고 답변을 생성하세요.
+    - 제공된 문서를 최대한 활용해서 정확하고 도움이 되는 답변을 제공하세요.
+    - 맥락에 맞지 않은 답변은 피하고 질문에 대해 최대한 일관성 있는 답변을 제시하세요.
+    - 답변은 가능한 경우에 최대한 Markdown 문법을 활용해서 작성하세요. (목록의 경우에는 bullet 을 사용하세요.)
+    - 문서에 없는 정보에 대해서는 "해당 질문에 대해서는 적절한 답변을 하기 어렵습니다. 죄송합니다."라고 답하세요.
+    - 답변은 항상 완결된 문장 형식을 취하고, 문법적으로 올바르게 작성하세요.
+    - 모든 답변은 정중한 형식의 문장을 사용합니다.
 
-질문: {question}
+    관련 문서: 
+    {context}
 
-답변:`);
-  }
+    질문: {question}
+
+    답변:
+`);
 
   /**
    * 공통 LLM 인스턴스 생성 (스트리밍 여부에 따라)
    */
-  private createLLM(streaming: boolean = false): ChatGoogleGenerativeAI {
-    return new ChatGoogleGenerativeAI({
-      model: 'gemini-2.0-flash',
+  private createLLM = (
+    streaming: boolean = false,
+    model: string = 'gemini-2.0-flash'
+  ): ChatGoogleGenerativeAI =>
+    new ChatGoogleGenerativeAI({
+      model,
       temperature: 0,
       apiKey: process.env.GOOGLE_API_KEY,
       streaming,
     });
-  }
 
   /**
    * 공통 문서 검색 로직
    */
-  private async searchDocuments(
+  private searchDocuments = async (
     question: string
-  ): Promise<{ documents: Document[]; context: string }> {
+  ): Promise<{ documents: Document[]; context: string }> => {
     if (!this.retriever) {
       throw new Error('Retriever가 초기화되지 않았습니다.');
     }
@@ -64,12 +92,12 @@ export class RAGChatbot {
     const context = documents.map(doc => doc.pageContent).join('\n\n');
 
     return { documents, context };
-  }
+  };
 
   /**
    * 챗봇 초기화 (LangChain 방식)
    */
-  async initialize() {
+  initialize = async () => {
     if (this.isInitialized) return;
 
     try {
@@ -114,12 +142,12 @@ export class RAGChatbot {
       console.error('RAG 챗봇 초기화 실패:', error);
       throw error;
     }
-  }
+  };
 
   /**
    * 질문에 대한 답변 생성 (LangChain RAG 방식)
    */
-  async ask(question: string): Promise<string> {
+  ask = async (question: string): Promise<string> => {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -139,10 +167,15 @@ export class RAGChatbot {
 
       console.log('---답변 생성 중---');
 
-      // 3. 답변 생성
+      // 3. 질문 정제
+      const refinedQuestion = await this.refineQuestion(question);
+
+      console.log('정제된 질문:', refinedQuestion);
+
+      // 4 답변 생성
       const result = await chain.invoke({
         context,
-        question,
+        question: refinedQuestion,
       });
 
       return result || '죄송합니다. 답변을 생성할 수 없습니다.';
@@ -150,7 +183,7 @@ export class RAGChatbot {
       console.error('질문 처리 중 오류:', error);
       return '오류가 발생했습니다. 다시 시도해주세요.';
     }
-  }
+  };
 
   /**
    * 스트리밍으로 답변 생성 (LangChain RAG 방식)
@@ -176,10 +209,15 @@ export class RAGChatbot {
 
       console.log('---스트리밍 답변 생성 중---');
 
-      // 3. 스트리밍 답변 생성
+      // 3. 질문 정제
+      const refinedQuestion = await this.refineQuestion(question);
+
+      console.log('정제된 질문:', refinedQuestion);
+
+      // 4. 스트리밍 답변 생성
       const stream = await streamingChain.stream({
         context,
-        question,
+        question: refinedQuestion,
       });
 
       for await (const chunk of stream) {
