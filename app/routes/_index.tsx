@@ -18,6 +18,9 @@ interface ChatMessage {
   isStreaming?: boolean;
 }
 
+const STREAMING_ERROR_MESSAGE =
+  '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.';
+
 export const meta: MetaFunction = () => {
   const title = 'Pathas 이력서 챗봇';
   const description = 'Pathas 이력서 기반 AI 챗봇입니다.';
