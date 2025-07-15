@@ -2,7 +2,7 @@
 
 LangChain 을 활용한 RAG(Retrieval-Augmented Generation) 포트폴리오 챗봇입니다.
 
-## � 기능
+## ☑️ 기능
 
 - PDF 문서 로딩 및 텍스트 추출
 - 문서 청킹 및 벡터 임베딩 (LangChain)
