@@ -221,9 +221,9 @@ export default function Index() {
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 shadow-2xl mb-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-red-500 rounded-full" />
+                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
+                <div className="w-3 h-3 bg-green-500 rounded-full" />
                 <span className="ml-4 text-xs md:text-sm text-gray-400">
                   Resume RAG Chatbot
                 </span>
@@ -293,15 +293,15 @@ export default function Index() {
                                 생각중입니다...
                               </div>
                               <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
                                 <div
                                   className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
                                   style={{ animationDelay: '0.1s' }}
-                                ></div>
+                                />
                                 <div
                                   className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
                                   style={{ animationDelay: '0.2s' }}
-                                ></div>
+                                />
                               </div>
                             </div>
                           </div>
@@ -335,7 +335,7 @@ export default function Index() {
                   >
                     {fetcher.state === 'submitting' || isStreaming ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       </div>
                     ) : (
                       '➤'
