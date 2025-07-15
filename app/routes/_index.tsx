@@ -11,6 +11,13 @@ interface ChatbotResponse {
   error?: string;
 }
 
+interface ChatMessage {
+  question: string;
+  answer: string;
+  timestamp: string;
+  isStreaming?: boolean;
+}
+
 export const meta: MetaFunction = () => {
   const title = 'Pathas 이력서 챗봇';
   const description = 'Pathas 이력서 기반 AI 챗봇입니다.';
@@ -32,45 +39,38 @@ export const meta: MetaFunction = () => {
 
 export default function Index() {
   const fetcher = useFetcher<ChatbotResponse>();
+
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<
-    Array<{
-      question: string;
-      answer: string;
-      timestamp: string;
-      isStreaming?: boolean;
-    }>
-  >([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true);
+
   const refMessagesEnd = useRef<HTMLDivElement>(null);
 
   const submitMessage = (question: string) => {
-    // Add user message to history immediately
     const userMessage = {
       question,
       answer: '',
       timestamp: new Date().toISOString(),
       isStreaming: useStreaming,
     };
+
     setChatHistory(prev => [...prev, userMessage]);
 
-    if (useStreaming) {
-      handleStreamingRequest(question);
-    } else {
-      fetcher.submit(
-        { message: question },
-        {
-          method: 'POST',
-          action: '/me',
-          encType: 'application/json',
-        }
-      );
-    }
+    if (useStreaming) return handleStreamingRequest(question);
+
+    fetcher.submit(
+      { message: question },
+      {
+        method: 'POST',
+        action: '/me',
+        encType: 'application/json',
+      }
+    );
   };
 
   const handleCardClick = (content: string) => {
-    if (isStreaming) return; // 스트리밍 중이면 무시
+    if (isStreaming) return;
     submitMessage(content);
   };
 
@@ -81,6 +81,22 @@ export default function Index() {
     submitMessage(message);
 
     setMessage('');
+  };
+
+  const updateLastChatMessage = (partialMessage: Partial<ChatMessage>) => {
+    setChatHistory(prev => {
+      const lastIndex = prev.length - 1;
+      if (lastIndex < 0) return prev;
+
+      const toUpdated = [...prev];
+
+      toUpdated[lastIndex] = {
+        ...toUpdated[lastIndex],
+        ...partialMessage,
+      };
+
+      return toUpdated;
+    });
   };
 
   const handleStreamingRequest = async (message: string) => {
@@ -106,6 +122,8 @@ export default function Index() {
         throw new Error('No reader available');
       }
 
+      const DATA_START_PREFIX = 'data: ';
+
       let streamedAnswer = '';
 
       // eslint-disable-next-line no-constant-condition
@@ -115,67 +133,50 @@ export default function Index() {
         if (done) break;
 
         const chunk = decoder.decode(value);
+
         const lines = chunk.split('\n\n');
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              console.log('Received streaming data:', data);
+          if (!line.startsWith(DATA_START_PREFIX)) continue;
 
-              if (data.type === 'chunk') {
+          try {
+            const data = JSON.parse(line.slice(DATA_START_PREFIX.length));
+            console.log('Received streaming data:', data);
+
+            switch (data.type) {
+              case 'chunk':
                 streamedAnswer += data.content;
                 console.log('Current streamed answer:', streamedAnswer);
 
-                setChatHistory(prev => {
-                  const updated = [...prev];
-                  const lastIndex = updated.length - 1;
-                  if (lastIndex >= 0) {
-                    updated[lastIndex] = {
-                      ...updated[lastIndex],
-                      answer: streamedAnswer,
-                      timestamp: data.timestamp,
-                    };
-                  }
-                  return updated;
+                updateLastChatMessage({
+                  answer: streamedAnswer,
+                  timestamp: data.timestamp,
                 });
-              } else if (data.type === 'done') {
+                break;
+              case 'done':
                 console.log('스트리밍 완료');
-              } else if (data.type === 'error') {
+                break;
+              case 'error':
                 streamedAnswer = data.content;
-                setChatHistory(prev => {
-                  const updated = [...prev];
-                  const lastIndex = updated.length - 1;
-                  if (lastIndex >= 0) {
-                    updated[lastIndex] = {
-                      ...updated[lastIndex],
-                      answer: streamedAnswer,
-                      timestamp: data.timestamp,
-                    };
-                  }
-                  return updated;
+                updateLastChatMessage({
+                  answer: streamedAnswer,
+                  timestamp: data.timestamp,
                 });
-              }
-            } catch (parseError) {
-              console.error('Error parsing streaming data:', parseError);
+                break;
+              default:
+                break;
             }
+          } catch (parseError) {
+            console.error('Error parsing streaming data:', parseError);
           }
         }
       }
     } catch (error) {
       console.error('Streaming error:', error);
-      // Update with error message
-      setChatHistory(prev => {
-        const updated = [...prev];
-        const lastIndex = updated.length - 1;
-        if (lastIndex >= 0) {
-          updated[lastIndex] = {
-            ...updated[lastIndex],
-            answer: '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.',
-            timestamp: new Date().toISOString(),
-          };
-        }
-        return updated;
+
+      updateLastChatMessage({
+        answer: '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.',
+        timestamp: new Date().toISOString(),
       });
     } finally {
       setIsStreaming(false);
@@ -184,17 +185,10 @@ export default function Index() {
 
   useEffect(() => {
     if (fetcher.data && fetcher.data.success) {
-      setChatHistory(prev => {
-        const updated = [...prev];
-        const lastIndex = updated.length - 1;
-        if (lastIndex >= 0 && fetcher.data) {
-          updated[lastIndex] = {
-            question: fetcher.data.question || '',
-            answer: fetcher.data.answer || '',
-            timestamp: fetcher.data.timestamp || new Date().toISOString(),
-          };
-        }
-        return updated;
+      updateLastChatMessage({
+        question: fetcher.data?.question || '',
+        answer: fetcher.data?.answer || '',
+        timestamp: fetcher.data?.timestamp || new Date().toISOString(),
       });
     }
   }, [fetcher.data]);
