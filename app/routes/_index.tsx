@@ -2,6 +2,7 @@ import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { ENDPOINTS, INTERVIEWEE, OG_CONFIG } from '~/constants';
 
 interface ChatbotResponse {
   success: boolean;
@@ -18,25 +19,25 @@ interface ChatMessage {
   isStreaming?: boolean;
 }
 
+const PascalName =
+  INTERVIEWEE.NAME.slice(0, 1).toUpperCase() + INTERVIEWEE.NAME.slice(1);
+
 const STREAMING_ERROR_MESSAGE =
   '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.';
 
 export const meta: MetaFunction = () => {
-  const title = 'Pathas 이력서 챗봇';
-  const description = 'Pathas 이력서 기반 AI 챗봇입니다.';
-  const siteUrl = 'https://portfolio-chatbot-ivory.vercel.app/';
-  const ogImageFilename = 'og-image.png';
-  const imageUrl = `${siteUrl}/${ogImageFilename}`;
+  const title = `${PascalName} 이력서 챗봇`;
+  const description = `${PascalName} 이력서 기반 AI 챗봇입니다.`;
+  const imageUrl = `${OG_CONFIG.SITE_URL}/${OG_CONFIG.IMAGE_FILENAME}`;
 
   return [
     { title },
     { name: 'description', content: description },
-
-    { property: 'og:type', content: 'website' },
-    { property: 'og:url', content: siteUrl },
     { property: 'og:title', content: title },
     { property: 'og:description', content: description },
     { property: 'og:image', content: imageUrl },
+    { property: 'og:type', content: OG_CONFIG.TYPE },
+    { property: 'og:url', content: OG_CONFIG.SITE_URL },
   ];
 };
 
@@ -66,7 +67,7 @@ export default function Index() {
       { message: question },
       {
         method: 'POST',
-        action: '/me',
+        action: ENDPOINTS.ME,
         encType: 'application/json',
       }
     );
@@ -106,7 +107,7 @@ export default function Index() {
     setIsStreaming(true);
 
     try {
-      const response = await fetch('/me?stream=true', {
+      const response = await fetch(`${ENDPOINTS.ME}?stream=true`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,7 +212,7 @@ export default function Index() {
           <div className="text-center mb-12">
             <div className="mb-8">
               <h1 className="text-2xl md:text-4xl font-bold text-white mb-4">
-                Pathas 이력서 챗봇
+                {PascalName} 이력서 챗봇
               </h1>
             </div>
           </div>
@@ -272,7 +273,7 @@ export default function Index() {
                         <div className="flex justify-start">
                           <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl max-w-md shadow-lg">
                             <div className="text-sm opacity-75 mb-1 text-blue-400">
-                              Pathas
+                              {PascalName}
                             </div>
                             <div className="prose prose-invert max-w-none">
                               <ReactMarkdown>{chat.answer || ''}</ReactMarkdown>

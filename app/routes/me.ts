@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs } from '@remix-run/node';
+import { ENDPOINTS } from '~/constants';
 import { getRagChatbot } from '~/lib/rag-chatbot.server';
 
 export const loader = async () => {
@@ -7,7 +8,7 @@ export const loader = async () => {
     {
       success: true,
       message: 'RAG Chatbot API is ready',
-      endpoint: '/me',
+      endpoint: ENDPOINTS.ME,
       methods: ['GET', 'POST'],
     },
     { status: 200 }

@@ -11,32 +11,23 @@ import { EnsembleRetriever } from 'langchain/retrievers/ensemble';
 import { BM25Retriever } from '@langchain/community/retrievers/bm25';
 import path from 'path';
 import {
-  INTERVIEWEE,
   LLM_CONFIG,
   RETRIEVAL_CONFIG,
   PROMPT_TEMPLATES,
-  FILE_PATHS,
+  RESUME_PATHS,
   LOG_MESSAGES,
   ERROR_MESSAGES,
 } from '~/constants';
 
-const stripPromptIndent = (prompt: string): string =>
-  prompt
-    .split('\n')
-    .map(line => line.trim())
-    .filter(trimmed => !!trimmed)
-    .join('\n');
-
 export class RAGChatbot {
   private retriever: EnsembleRetriever | null = null;
   private isInitialized = false;
-  private readonly interviewee: string = INTERVIEWEE.NAME;
 
   private refineQuestion = async (question: string): Promise<string> => {
     const llm = this.createLLM(false, LLM_CONFIG.MODELS.LITE);
 
     const prompt = ChatPromptTemplate.fromTemplate(
-      stripPromptIndent(PROMPT_TEMPLATES.QUESTION_REFINEMENT)
+      PROMPT_TEMPLATES.QUESTION_REFINEMENT
     );
     const chain = prompt.pipe(llm).pipe(new StringOutputParser());
 
@@ -48,9 +39,7 @@ export class RAGChatbot {
    * 공통 프롬프트 템플릿
    */
   private getPromptTemplate = (): ChatPromptTemplate =>
-    ChatPromptTemplate.fromTemplate(
-      stripPromptIndent(PROMPT_TEMPLATES.MAIN_RESPONSE(this.interviewee))
-    );
+    ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATES.QUERY_RESUME_PROMPT);
 
   /**
    * 공통 LLM 인스턴스 생성 (스트리밍 여부에 따라)
@@ -91,7 +80,11 @@ export class RAGChatbot {
 
     try {
       // 1. PDF 파일 로드 및 처리
-      const pdfPath = path.join(process.cwd(), 'public', FILE_PATHS.RESUME_PDF);
+      const pdfPath = path.join(
+        process.cwd(),
+        RESUME_PATHS.PUBLIC_DIR,
+        RESUME_PATHS.RESUME_PDF
+      );
       const pdfLoader = new PDFLoader(pdfPath);
       const documents = await pdfLoader.load();
 
