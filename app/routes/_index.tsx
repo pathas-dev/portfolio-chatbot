@@ -175,7 +175,7 @@ export default function Index() {
       console.error('Streaming error:', error);
 
       updateLastChatMessage({
-        answer: '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.',
+        answer: STREAMING_ERROR_MESSAGE,
         timestamp: new Date().toISOString(),
       });
     } finally {
