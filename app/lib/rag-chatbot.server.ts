@@ -128,41 +128,60 @@ export class RAGChatbot {
   };
 
   /**
-   * 질문에 대한 답변 생성 (LangChain RAG 방식)
+   * 공통 질문 처리 로직 (초기화, 질문 정제, 문서 검색)
    */
-  ask = async (question: string): Promise<string> => {
+  private prepareQuery = async (question: string) => {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
+    // 1. 질문 정제를 먼저 수행
+    const refinedQuestion = await this.refineQuestion(question);
+    console.log(LOG_MESSAGES.REFINED_QUESTION(refinedQuestion));
+
+    // 2. 정제된 질문으로 문서 검색
+    const { context } = await this.searchDocuments(refinedQuestion);
+
+    if (!context.trim()) {
+      throw new Error(ERROR_MESSAGES.NO_DOCUMENTS_FOUND);
+    }
+
+    return { context, refinedQuestion };
+  };
+
+  /**
+   *
+   * @param streaming llm 스트리밍 여부
+   * @returns chain 인스턴스
+   */
+  private buildChain = (streaming: boolean) => {
+    const prompt = this.getPromptTemplate();
+    const llm = this.createLLM(streaming);
+    return prompt.pipe(llm).pipe(new StringOutputParser());
+  };
+
+  /**
+   * 질문에 대한 답변 생성 (LangChain RAG 방식)
+   */
+  ask = async (question: string): Promise<string> => {
     try {
-      // 1. 공통 문서 검색
-      const { context } = await this.searchDocuments(question);
-
-      if (!context.trim()) {
-        return ERROR_MESSAGES.NO_DOCUMENTS_FOUND;
-      }
-
-      // 2. LangChain RAG 체인 구성
-      const prompt = this.getPromptTemplate();
-      const llm = this.createLLM(false); // 일반 응답
-      const chain = prompt.pipe(llm).pipe(new StringOutputParser());
+      const { context, refinedQuestion } = await this.prepareQuery(question);
 
       console.log(LOG_MESSAGES.ANSWER_GENERATION);
 
-      // 3. 질문 정제
-      const refinedQuestion = await this.refineQuestion(question);
-
-      console.log(LOG_MESSAGES.REFINED_QUESTION(refinedQuestion));
-
-      // 4 답변 생성
-      const result = await chain.invoke({
+      const result = await this.buildChain(false).invoke({
         context,
         question: refinedQuestion,
       });
 
       return result || ERROR_MESSAGES.NO_ANSWER_GENERATED;
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === ERROR_MESSAGES.NO_DOCUMENTS_FOUND
+      ) {
+        return error.message;
+      }
       console.error(ERROR_MESSAGES.QUESTION_PROCESSING_ERROR, error);
       return ERROR_MESSAGES.GENERIC_ERROR;
     }
@@ -172,33 +191,12 @@ export class RAGChatbot {
    * 스트리밍으로 답변 생성 (LangChain RAG 방식)
    */
   async *askStream(question: string): AsyncGenerator<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
     try {
-      // 1. 공통 문서 검색
-      const { context } = await this.searchDocuments(question);
-
-      if (!context.trim()) {
-        yield ERROR_MESSAGES.NO_DOCUMENTS_FOUND;
-        return;
-      }
-
-      // 2. LangChain 스트리밍 체인 구성
-      const prompt = this.getPromptTemplate();
-      const llm = this.createLLM(true); // 스트리밍 활성화
-      const streamingChain = prompt.pipe(llm).pipe(new StringOutputParser());
+      const { context, refinedQuestion } = await this.prepareQuery(question);
 
       console.log(LOG_MESSAGES.STREAMING_ANSWER_GENERATION);
 
-      // 3. 질문 정제
-      const refinedQuestion = await this.refineQuestion(question);
-
-      console.log(LOG_MESSAGES.REFINED_QUESTION(refinedQuestion));
-
-      // 4. 스트리밍 답변 생성
-      const stream = await streamingChain.stream({
+      const stream = await this.buildChain(true).stream({
         context,
         question: refinedQuestion,
       });
@@ -210,6 +208,13 @@ export class RAGChatbot {
         }
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === ERROR_MESSAGES.NO_DOCUMENTS_FOUND
+      ) {
+        yield error.message;
+        return;
+      }
       console.error(ERROR_MESSAGES.STREAMING_ERROR, error);
       yield ERROR_MESSAGES.GENERIC_ERROR;
     }
