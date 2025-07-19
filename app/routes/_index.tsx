@@ -2,7 +2,8 @@ import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ENDPOINTS, INTERVIEWEE, OG_CONFIG } from '~/constants';
+import { ENDPOINTS, INTERVIEWEE, OG_CONFIG, EXAMPLE_QUESTIONS, STREAMING_ERROR_MESSAGE, type ExampleQuestion } from '~/constants';
+import { LoadingDots, LoadingSpinner } from '~/components/LoadingIndicators';
 
 interface ChatbotResponse {
   success: boolean;
@@ -21,9 +22,6 @@ interface ChatMessage {
 
 const PascalName =
   INTERVIEWEE.NAME.slice(0, 1).toUpperCase() + INTERVIEWEE.NAME.slice(1);
-
-const STREAMING_ERROR_MESSAGE =
-  '스트리밍 중 오류가 발생했습니다. 다시 시도해주세요.';
 
 export const meta: MetaFunction = () => {
   const title = `${PascalName} 이력서 챗봇`;
@@ -51,6 +49,10 @@ export default function Index() {
 
   const refMessagesEnd = useRef<HTMLDivElement>(null);
 
+  // Computed values to reduce repetition
+  const isLoading = fetcher.state === 'submitting' || isStreaming;
+  const canSubmit = !isLoading && message.trim();
+
   const submitMessage = (question: string) => {
     const userMessage = {
       question,
@@ -74,13 +76,13 @@ export default function Index() {
   };
 
   const handleCardClick = (content: string) => {
-    if (isStreaming) return;
+    if (isLoading) return;
     submitMessage(content);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isStreaming) return;
+    if (!canSubmit) return;
 
     submitMessage(message);
 
@@ -256,58 +258,52 @@ export default function Index() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {chatHistory.map((chat, index) => (
-                    <div key={index} className="space-y-4">
-                      {/* User Message */}
-                      <div className="flex justify-end">
-                        <div className="bg-blue-600 text-white p-4 rounded-2xl max-w-md shadow-lg">
-                          <div className="text-sm opacity-75 mb-1">
-                            Interviewer
-                          </div>
-                          {chat.question}
-                        </div>
-                      </div>
+                  {chatHistory.map((chat, index) => {
+                    const isLastMessage = index === chatHistory.length - 1;
+                    const shouldShowLoading = !chat.answer && 
+                      (fetcher.state === 'submitting' || (isStreaming && isLastMessage)) && 
+                      isLastMessage;
 
-                      {/* Bot Response */}
-                      {chat.answer && (
-                        <div className="flex justify-start">
-                          <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl max-w-md shadow-lg">
-                            <div className="text-sm opacity-75 mb-1 text-blue-400">
-                              {PascalName}
+                    return (
+                      <div key={index} className="space-y-4">
+                        {/* User Message */}
+                        <div className="flex justify-end">
+                          <div className="bg-blue-600 text-white p-4 rounded-2xl max-w-md shadow-lg">
+                            <div className="text-sm opacity-75 mb-1">
+                              Interviewer
                             </div>
-                            <div className="prose prose-invert max-w-none">
-                              <ReactMarkdown>{chat.answer || ''}</ReactMarkdown>
-                            </div>
+                            {chat.question}
                           </div>
                         </div>
-                      )}
 
-                      {/* Loading indicator */}
-                      {!chat.answer &&
-                        (fetcher.state === 'submitting' ||
-                          (isStreaming && index === chatHistory.length - 1)) &&
-                        index === chatHistory.length - 1 && (
+                        {/* Bot Response */}
+                        {chat.answer && (
+                          <div className="flex justify-start">
+                            <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl max-w-md shadow-lg">
+                              <div className="text-sm opacity-75 mb-1 text-blue-400">
+                                {PascalName}
+                              </div>
+                              <div className="prose prose-invert max-w-none">
+                                <ReactMarkdown>{chat.answer || ''}</ReactMarkdown>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Loading indicator */}
+                        {shouldShowLoading && (
                           <div className="flex justify-start">
                             <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl shadow-lg">
                               <div className="text-sm opacity-75 mb-1 text-blue-400">
                                 생각중입니다...
                               </div>
-                              <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
-                                <div
-                                  className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
-                                  style={{ animationDelay: '0.1s' }}
-                                />
-                                <div
-                                  className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
-                                  style={{ animationDelay: '0.2s' }}
-                                />
-                              </div>
+                              <LoadingDots />
                             </div>
                           </div>
                         )}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -322,20 +318,16 @@ export default function Index() {
                     onChange={e => setMessage(e.target.value)}
                     placeholder="당신의 경력은 어떻게 되나요?"
                     className="flex-1 p-4 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full max-w-full box-border"
-                    disabled={fetcher.state === 'submitting' || isStreaming}
+                    disabled={isLoading}
                   />
                   <button
                     type="submit"
-                    disabled={
-                      fetcher.state === 'submitting' ||
-                      isStreaming ||
-                      !message.trim()
-                    }
+                    disabled={!canSubmit}
                     className="px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg"
                   >
-                    {fetcher.state === 'submitting' || isStreaming ? (
+                    {isLoading ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <LoadingSpinner />
                       </div>
                     ) : (
                       '➤'
@@ -355,47 +347,14 @@ export default function Index() {
 
           {/* Example Questions Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                title: '이력서 요약',
-                content: '전체 이력서를 간단히 요약해 주세요.',
-                icon: '📝',
-              },
-              {
-                title: '경력 & 경험',
-                content: '당신의 경력은 어떻게 되나요?',
-                icon: '💼',
-              },
-              {
-                title: '프로젝트 경험',
-                content: '진행하신 프로젝트들을 요약해서 알려주세요.',
-                icon: '🚀',
-              },
-              {
-                title: '기술 스택',
-                content: '어떤 기술들을 사용할 수 있나요?',
-                icon: '🛠️',
-              },
-              {
-                title: '문제 해결',
-                content: '어떤 문제들을 해결해 봤나요?',
-                icon: '🧩',
-              },
-              {
-                title: '포트폴리오',
-                content: '포트폴리오나 블로그가 있나요?',
-                icon: '🌐',
-              },
-            ].map((example, index) => (
+            {EXAMPLE_QUESTIONS.map((example, index) => (
               <button
                 key={index}
                 onClick={() => handleCardClick(example.content)}
                 className={`bg-gray-800/30 border border-gray-700 p-6 rounded-xl hover:bg-gray-700/30 cursor-pointer transition-all duration-200 hover:border-gray-600 group text-left w-full ${
-                  fetcher.state === 'submitting' || isStreaming
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
-                disabled={fetcher.state === 'submitting' || isStreaming}
+                disabled={isLoading}
               >
                 <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200">
                   {example.icon}
