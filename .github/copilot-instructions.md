@@ -26,7 +26,7 @@ This is a TypeScript/React full-stack application built with Remix, featuring AI
   - `app/entry.client.tsx` & `app/entry.server.tsx`: Remix entry points
   - `app/root.tsx`: Root application component
   - `app/tailwind.css`: Global styles
-- `public/`: Static assets (favicon.ico, logos, resume.pdf, og-image.png)
+- `public/`: Static assets (favicon.ico, resume.pdf, og-image.png)
 - Root level: Configuration files (vite.config.ts, tailwind.config.ts, postcss.config.js)
 
 ## Key Guidelines
