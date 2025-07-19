@@ -29,6 +29,9 @@ export const INTERVIEWEE = {
   ROLE: '프런트엔드 개발자',
 } as const;
 
+export const PASCAL_NAME = 
+  INTERVIEWEE.NAME.slice(0, 1).toUpperCase() + INTERVIEWEE.NAME.slice(1);
+
 export const RESUME_PATHS = {
   RESUME_PDF: 'resume.pdf',
   PUBLIC_DIR: 'public',
