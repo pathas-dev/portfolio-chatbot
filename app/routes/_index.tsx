@@ -2,7 +2,7 @@ import type { MetaFunction } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ENDPOINTS, INTERVIEWEE, OG_CONFIG, EXAMPLE_QUESTIONS, STREAMING_ERROR_MESSAGE, type ExampleQuestion } from '~/constants';
+import { ENDPOINTS, INTERVIEWEE, OG_CONFIG, EXAMPLE_QUESTIONS, STREAMING_ERROR_MESSAGE, PASCAL_NAME, type ExampleQuestion } from '~/constants';
 import { LoadingDots, LoadingSpinner } from '~/components/LoadingIndicators';
 
 interface ChatbotResponse {
@@ -20,12 +20,9 @@ interface ChatMessage {
   isStreaming?: boolean;
 }
 
-const PascalName =
-  INTERVIEWEE.NAME.slice(0, 1).toUpperCase() + INTERVIEWEE.NAME.slice(1);
-
 export const meta: MetaFunction = () => {
-  const title = `${PascalName} 이력서 챗봇`;
-  const description = `${PascalName} 이력서 기반 AI 챗봇입니다.`;
+  const title = `${PASCAL_NAME} 이력서 챗봇`;
+  const description = `${PASCAL_NAME} 이력서 기반 AI 챗봇입니다.`;
   const imageUrl = `${OG_CONFIG.SITE_URL}/${OG_CONFIG.IMAGE_FILENAME}`;
 
   return [
@@ -214,7 +211,7 @@ export default function Index() {
           <div className="text-center mb-12">
             <div className="mb-8">
               <h1 className="text-2xl md:text-4xl font-bold text-white mb-4">
-                {PascalName} 이력서 챗봇
+                {PASCAL_NAME} 이력서 챗봇
               </h1>
             </div>
           </div>
@@ -281,7 +278,7 @@ export default function Index() {
                           <div className="flex justify-start">
                             <div className="bg-gray-700 text-gray-100 p-4 rounded-2xl max-w-md shadow-lg">
                               <div className="text-sm opacity-75 mb-1 text-blue-400">
-                                {PascalName}
+                                {PASCAL_NAME}
                               </div>
                               <div className="prose prose-invert max-w-none">
                                 <ReactMarkdown>{chat.answer || ''}</ReactMarkdown>
