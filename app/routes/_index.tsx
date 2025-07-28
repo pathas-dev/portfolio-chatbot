@@ -353,10 +353,10 @@ export default function Index() {
                 }`}
                 disabled={isLoading}
               >
-                <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200">
+                <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-200 min-w-[3rem]">
                   {example.icon}
                 </div>
-                <h3 className="text-white font-medium mb-3">{example.title}</h3>
+                <h3 className="text-white font-medium mb-3 text-sm">{example.title}</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">
                   {example.content}
                 </p>
