@@ -5,11 +5,11 @@
 // LLM 모델 설정
 export const LLM_CONFIG = {
   MODELS: {
-    PRIMARY: 'gemini-2.0-flash',
-    LITE: 'gemini-2.0-flash-lite',
+    PRIMARY: 'llama-3.3-70b-versatile',
+    LITE: 'llama-3.1-8b-instant',
   },
   TEMPERATURE: 0,
-  API_KEY_ENV: 'GOOGLE_API_KEY',
+  API_KEY_ENV: 'GROQ_API_KEY',
 } as const;
 
 // 검색 설정

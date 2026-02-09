@@ -2,10 +2,8 @@ import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { Document } from '@langchain/core/documents';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import {
-  ChatGoogleGenerativeAI,
-  GoogleGenerativeAIEmbeddings,
-} from '@langchain/google-genai';
+import { ChatGroq } from '@langchain/groq';
+import { HuggingFaceInferenceEmbeddings } from '@langchain/community/embeddings/hf';
 import { MemoryVectorStore } from 'langchain/vectorstores/memory';
 import { EnsembleRetriever } from 'langchain/retrievers/ensemble';
 import { BM25Retriever } from '@langchain/community/retrievers/bm25';
@@ -31,7 +29,7 @@ export class RAGChatbot {
     );
     const chain = prompt.pipe(llm).pipe(new StringOutputParser());
 
-    const result = await chain.invoke({ question });
+    const result = await this.executeWithRetry(() => chain.invoke({ question }));
     return result || question;
   };
 
@@ -47,12 +45,13 @@ export class RAGChatbot {
   private createLLM = (
     streaming: boolean = false,
     model: string = LLM_CONFIG.MODELS.PRIMARY
-  ): ChatGoogleGenerativeAI =>
-    new ChatGoogleGenerativeAI({
+  ): ChatGroq =>
+    new ChatGroq({
       model,
       temperature: LLM_CONFIG.TEMPERATURE,
       apiKey: process.env[LLM_CONFIG.API_KEY_ENV],
       streaming,
+      maxRetries: 2, // 기본 재시도 횟수 설정
     });
 
   /**
@@ -70,6 +69,28 @@ export class RAGChatbot {
     const context = documents.map(doc => doc.pageContent).join('\n\n');
 
     return { documents, context };
+  };
+
+  /**
+   * API 호출 재시도 로직 (429 에러 처리)
+   */
+  private executeWithRetry = async <T>(
+    operation: () => Promise<T>,
+    retries = 3,
+    delay = 1000
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (retries > 0 && (error?.status === 429 || error?.code === 429)) {
+        console.warn(
+          `Rate limit exceeded. Retrying in ${delay}ms... (${retries} attempts left)`
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.executeWithRetry(operation, retries - 1, delay * 2);
+      }
+      throw error;
+    }
   };
 
   /**
@@ -91,8 +112,10 @@ export class RAGChatbot {
       console.log(LOG_MESSAGES.PDF_LOADED(documents.length));
 
       // 2. 임베딩 및 벡터 스토어 생성
-      const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: process.env[LLM_CONFIG.API_KEY_ENV],
+      // HuggingFace Inference API 사용 (무료)
+      const embeddings = new HuggingFaceInferenceEmbeddings({
+        apiKey: process.env.HUGGINGFACEHUB_API_KEY,
+        model: 'sentence-transformers/all-MiniLM-L6-v2', // 무료로 사용 가능한 경량 모델
       });
 
       const vectorStore = await MemoryVectorStore.fromDocuments(
@@ -136,7 +159,9 @@ export class RAGChatbot {
     }
 
     // 1. 질문 정제를 먼저 수행
-    const refinedQuestion = await this.refineQuestion(question);
+    const refinedQuestion = await this.executeWithRetry(() =>
+      this.refineQuestion(question)
+    );
     console.log(LOG_MESSAGES.REFINED_QUESTION(refinedQuestion));
 
     // 2. 정제된 질문으로 문서 검색
@@ -169,18 +194,23 @@ export class RAGChatbot {
 
       console.log(LOG_MESSAGES.ANSWER_GENERATION);
 
-      const result = await this.buildChain(false).invoke({
-        context,
-        question: refinedQuestion,
-      });
+      const result = await this.executeWithRetry(() =>
+        this.buildChain(false).invoke({
+          context,
+          question: refinedQuestion,
+        })
+      );
 
       return result || ERROR_MESSAGES.NO_ANSWER_GENERATED;
-    } catch (error) {
+    } catch (error: any) {
       if (
         error instanceof Error &&
         error.message === ERROR_MESSAGES.NO_DOCUMENTS_FOUND
       ) {
         return error.message;
+      }
+      if (error?.status === 429 || error?.code === 429) {
+        return '현재 사용량이 많아 답변을 생성할 수 없습니다. 잠시 후 다시 시도해주세요.';
       }
       console.error(ERROR_MESSAGES.QUESTION_PROCESSING_ERROR, error);
       return ERROR_MESSAGES.GENERIC_ERROR;
@@ -196,10 +226,13 @@ export class RAGChatbot {
 
       console.log(LOG_MESSAGES.STREAMING_ANSWER_GENERATION);
 
-      const stream = await this.buildChain(true).stream({
-        context,
-        question: refinedQuestion,
-      });
+      const chain = this.buildChain(true);
+      const stream = await this.executeWithRetry(() =>
+        chain.stream({
+          context,
+          question: refinedQuestion,
+        })
+      );
 
       for await (const chunk of stream) {
         if (chunk && chunk.trim()) {
@@ -207,12 +240,16 @@ export class RAGChatbot {
           yield chunk;
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (
         error instanceof Error &&
         error.message === ERROR_MESSAGES.NO_DOCUMENTS_FOUND
       ) {
         yield error.message;
+        return;
+      }
+      if (error?.status === 429 || error?.code === 429) {
+        yield '현재 사용량이 많아 답변을 생성할 수 없습니다. 잠시 후 다시 시도해주세요.';
         return;
       }
       console.error(ERROR_MESSAGES.STREAMING_ERROR, error);
